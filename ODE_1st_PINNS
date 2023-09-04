@@ -1,0 +1,56 @@
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+device = torch.device('cpu')
+
+#Define our network 
+class ODE_1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.hidden = nn.Linear(1,10)
+        self.final = nn.Linear(10,1)
+    def forward(self,x):
+        activated = torch.sigmoid(self.hidden(x))
+        output = self.final(activated)
+        return output
+NN = ODE_1()
+NN = NN.to(device)
+
+#Example function f(x) = e^x p(x) = 0 and y(0) = 1 
+# in dy/dx + p(x).y = f(x)
+# so dy/dx + 0 - e^x = 0 
+# exact solution, if integrate y = e^x
+
+def f(x):
+    return torch.exp(x)
+
+def loss(x):
+    x.requires_grad = True
+    y = NN(x)
+    dy_dx = torch.autograd.grad(y.sum(), x, create_graph=True)[0]
+    difference = torch.mean( (dy_dx - f(x))**2 ) + (y[0, 0] - 1.)**2
+    return difference
+
+optimizer = torch.optim.LBFGS(NN.parameters())
+#TRAIN HERE
+x = torch.linspace(0, 1, 100).unsqueeze(1)
+def closure():
+    optimizer.zero_grad()
+    l = loss(x)
+    l.backward()
+    return l
+
+epochs = 10
+for i in range(epochs):
+    optimizer.step(closure)
+#PREDICT HERE
+xx = torch.linspace(0, 1, 100).unsqueeze(1)
+yy = NN(xx).detach()
+
+plt.figure(figsize=(10, 6))
+plt.plot(xx, yy, label="Predicted")
+plt.plot(xx, torch.exp(xx), '--', label="Exact")
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.grid()
